@@ -1,0 +1,35 @@
+{
+	"name": "polkadot-js-api-ts-template",
+	"version": "0.1.0",
+	"description": "A template project to kickstart hacking on top of @polkadot/api",
+	"main": "index.js",
+	"scripts": {
+		"dev": "./node_modules/.bin/nodemon --exec ./node_modules/.bin/ts-node ./src/index.ts",
+		"start": "./node_modules/.bin/ts-node ./src/index.ts",
+		"update": "././node_modules/.bin/ncu -u && yarn",
+		"lint": "eslint . --ext .ts --fix",
+		"build": "./node_modules/.bin/tsc --pretty"
+	},
+	"author": "@kianenigma",
+	"license": "ISC",
+	"devDependencies": {
+		"@babel/cli": "^7.13.16",
+		"@babel/core": "^7.14.0",
+		"@babel/preset-typescript": "^7.13.0",
+		"@types/node": "^15.0.2",
+		"@types/yargs": "^16.0.1",
+		"@typescript-eslint/eslint-plugin": "^4.23.0",
+		"@typescript-eslint/parser": "^4.23.0",
+		"eslint": "^7.26.0",
+		"nodemon": "^2.0.7",
+		"npm-check-updates": "11.5.10",
+		"ts-loader": "^9.1.2",
+		"ts-node": "^9.1.1",
+		"typescript": "4.2.4"
+	},
+	"dependencies": {
+		"@polkadot/api": "4.9.2",
+		"bn.js": "^5.2.0",
+		"yargs": "^17.0.1"
+	}
+}
