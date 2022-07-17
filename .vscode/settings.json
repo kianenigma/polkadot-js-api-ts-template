@@ -5,6 +5,9 @@
 	"eslint.validate": [
 		"javascript", "typescript",
 	],
+	"editor.formatOnSave": true,
+	"editor.defaultFormatter": "vscode.typescript-language-features",
+
 	"workbench.colorCustomizations": {
 		"activityBar.activeBackground": "#677ff2",
 		"activityBar.activeBorder": "#fac4ce",

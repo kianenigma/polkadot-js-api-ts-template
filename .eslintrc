@@ -7,12 +7,10 @@
 	"extends": [
 		"eslint:recommended",
 		"plugin:@typescript-eslint/eslint-recommended",
-		"plugin:@typescript-eslint/recommended"
+		"plugin:@typescript-eslint/recommended",
+		"plugin:prettier/recommended"
 	],
 	"rules": {
-		"indent": [
-			"error",
-			"tab"
-		]
+		"@typescript-eslint/ban-ts-comment": "warn"
 	}
 }
