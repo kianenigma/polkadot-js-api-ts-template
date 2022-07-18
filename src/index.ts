@@ -24,8 +24,6 @@ async function main() {
 
 	console.log(`Connected to node: ${options.endpoint} ${(await api.rpc.system.chain()).toHuman()} [ss58: ${api.registry.chainSS58}]`)
 
-	await api.rpc.chain.getBlock("")
-
 	// reading a constant
 	const ED: Balance = api.consts.balances.existentialDeposit;
 	console.log(ED.toHuman())
