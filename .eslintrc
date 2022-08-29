@@ -11,6 +11,10 @@
 		"plugin:prettier/recommended"
 	],
 	"rules": {
-		"@typescript-eslint/ban-ts-comment": "warn"
+		"@typescript-eslint/ban-ts-comment": "warn",
+		"indent": [
+			"error",
+			"tab"
+		]
 	}
 }
