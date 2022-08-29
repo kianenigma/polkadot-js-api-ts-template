@@ -4,12 +4,14 @@
 	"description": "A template project to kickstart hacking on top of @polkadot/api, using typescript",
 	"main": "./build/index.js",
 	"scripts": {
+		"run": "./node_modules/.bin/ts-node ./src/index.ts",
+		"run:dev": "./node_modules/.bin/nodemon --exec ./node_modules/.bin/ts-node ./src/index.ts",
+		"build": "npm run clean && ./node_modules/.bin/tsc --pretty --declaration",
+		"build:dev": "./node_modules/.bin/tsc --pretty --declaration --watch",
 		"clean": "./node_modules/.bin/rimraf build",
-		"dev": "./node_modules/.bin/tsc --pretty --declaration --watch",
 		"update": "./node_modules/.bin/ncu -u && yarn",
 		"lint": "eslint . --ext .ts --fix",
-		"format": "prettier --write './**/*.{js,jsx,ts,tsx,css,md,json}' --config ./.prettierrc",
-		"build": "npm run clean && ./node_modules/.bin/tsc --pretty --declaration"
+		"format": "prettier --write './**/*.{js,jsx,ts,tsx,css,md,json}' --config ./.prettierrc"
 	},
 	"author": "@kianenigma",
 	"license": "ISC",
@@ -27,7 +29,9 @@
 		"prettier": "^2.7.1",
 		"ts-loader": "^9.3.1",
 		"ts-node": "^10.9.1",
-		"typescript": "4.8.2"
+		"typescript": "4.8.2",
+		"nodemon": "^2.0.15",
+		"rimraf": "^3.0.2"
 	},
 	"dependencies": {
 		"@polkadot/api": "9.2.4",

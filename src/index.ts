@@ -22,10 +22,17 @@ async function main() {
 	const api = await ApiPromise.create({ provider });
 
 	console.log(
-		`Connected to node: ${options.endpoint} ${(await api.rpc.system.chain()).toHuman()} [ss58: ${
-			api.registry.chainSS58
+		`Connected to node: ${options.endpoint} ${(await api.rpc.system.chain()).toHuman()} [ss58: ${api.registry.chainSS58
 		}]`
 	);
+
+
+	for (let key in api.query) {
+		console.log(key, api.query[key])
+		if (api.query[key]) {
+			console.log(await api.query[key].palletVersion());
+		}
+	}
 
 	// reading a constant
 	const ED: Balance = api.consts.balances.existentialDeposit;
