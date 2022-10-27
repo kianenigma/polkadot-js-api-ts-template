@@ -30,7 +30,7 @@ async function main() {
 	for (let key in api.query) {
 		console.log(key, api.query[key])
 		if (api.query[key]) {
-			console.log(await api.query[key].palletVersion());
+			console.log(await api.query[key].palletVersion);
 		}
 	}
 
