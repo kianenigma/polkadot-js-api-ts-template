@@ -102,19 +102,19 @@ async function main() {
 	}
 
 	// Count of all nominators.
-	console.log(`staking_NominatorCount: ${await api.query.staking.counterForNominators()}`);
+	console.log(`staking_nominatorCount: ${await api.query.staking.counterForNominators()}`);
 	// Count of all validators
-	console.log(`staking_ValidatorCount: ${await api.query.staking.counterForValidators()}`);
+	console.log(`staking_validatorCount: ${await api.query.staking.counterForValidators()}`);
 	// Number of DOTs staked in general.
 	const stakingStaked = await api.query.staking.erasTotalStake(currentEra);
-	console.log(`staking_Staked ${b(stakingStaked)}`);
+	console.log(`staking_staked ${b(stakingStaked)}`);
 
 	// NOTE: next two metrics take a lot of time, if too slow, consider skipping, or scraping less frequent.
 	const ledgers = (await api.query.staking.ledger.entries()).map(([_, l]) => l.unwrap());
 
 	// Amount of dots being unstaked from staking. Will give un an indicate of how many people are unbonding.
 	console.log(
-		`staking_UnbondingStake ${b(sum(ledgers.map((l) => l.total.toBn().sub(l.active.toBn()))))}`
+		`staking_unbondingStake ${b(sum(ledgers.map((l) => l.total.toBn().sub(l.active.toBn()))))}`
 	);
 	// Number of stakers who have some kind of partial unstake process going on
 	console.log(`staking_UnbondingCount ${ledgers.filter((l) => !l.total.eq(l.active)).length}`);
@@ -133,7 +133,7 @@ async function main() {
 	);
 
 	// Members in all pools.
-	console.log(`pools_MembersCount: ${membersCount}`);
+	console.log(`pools_membersCount: ${membersCount}`);
 	// Average member count across pools.
 	console.log(
 		`pools_avgMemberPerPool: ${(membersCount.toNumber() / poolsCount.toNumber()).toFixed(1)}`
@@ -141,27 +141,28 @@ async function main() {
 
 	// The number of DOTs staked via pools.
 	const poolsStake = sum(PoolsDetails.map((p) => p.poolActiveBalance));
-	console.log(`pools_Staked: ${b(poolsStake)}`);
+	console.log(`pools_staked: ${b(poolsStake)}`);
 	// Same as above, but in points.
-	console.log(`pools_Points: ${b(sum(PoolsDetails.map((p) => p.poolPoints)))}`);
+	console.log(`pools_points: ${b(sum(PoolsDetails.map((p) => p.poolPoints)))}`);
 
 	// Ratio of dots staked via pools. This is `pools_sum_staked / staking_sumStaked`.
 	console.log(
+		// this will allow us to detect a ratio as small as one-millionth.
 		`pools_stakingRatio ${(
 			poolsStake.mul(new BN(1000000)).div(stakingStaked).toNumber() / 1000000
-		).toFixed()}`
+		).toFixed(4)}`
 	);
 
 	// Total balance being unbonded from pools.
 	console.log(
-		`pools_sumUnbondingBalance: ${b(
+		`pools_unbondingBalance: ${b(
 			PoolsDetails.map((p) => p.unbondingBalance).reduce((p, c) => p.add(c))
 		)}`
 	);
 	// the amount of pending rewards in all pools over time. We want the integral of this, and we
 	// interpret it as: Total DOTs rewarded via poos in a period of time.
 	console.log(
-		`pools_sumPendingRewards: ${b(
+		`pools_pendingRewards: ${b(
 			PoolsDetails.map((p) => p.pendingRewards).reduce((p, c) => p.add(c))
 		)}`
 	);
