@@ -138,6 +138,13 @@ async function main() {
 	console.log(
 		`pools_avgMemberPerPool: ${(membersCount.toNumber() / poolsCount.toNumber()).toFixed(1)}`
 	);
+	// NOTE: the following is rather slow, remove if not needed.
+	// Number of members having less than 200 DOTs in the pool, per pool. Mapping from poolId to count.
+	const pointsLimit = new BN(10).pow(new BN(10)).mul(new BN(200));
+	const membersLessThanLimit = (await api.query.nominationPools.poolMembers.entries())
+		.map(([_, m]) => m.unwrap().points)
+		.filter((p) => p.lt(pointsLimit)).length;
+	console.log(`pools_membersLessThan${b(pointsLimit)}: ${membersLessThanLimit}`);
 
 	// The number of DOTs staked via pools.
 	const poolsStake = sum(PoolsDetails.map((p) => p.poolActiveBalance));
