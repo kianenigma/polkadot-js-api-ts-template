@@ -117,7 +117,7 @@ async function main() {
 		`staking_unbondingStake ${b(sum(ledgers.map((l) => l.total.toBn().sub(l.active.toBn()))))}`
 	);
 	// Number of stakers who have some kind of partial unstake process going on
-	console.log(`staking_UnbondingCount ${ledgers.filter((l) => !l.total.eq(l.active)).length}`);
+	console.log(`staking_unbondingCount ${ledgers.filter((l) => !l.total.eq(l.active)).length}`);
 	// Number of stakers that are scheduled to fully unbond.
 	console.log(
 		`staking_fullyUnbondingCount ${
@@ -126,7 +126,7 @@ async function main() {
 	);
 
 	// Count of all pools.
-	console.log(`pools_PoolsCount: ${poolsCount}`);
+	console.log(`pools_poolsCount: ${poolsCount}`);
 	// Number of pools which are not slashed and have 1-1 point to balance ratio.
 	console.log(
 		`pools_unslashedPoolsCount ${PoolsDetails.filter((p) => p.ratioPercent.eq(new BN(100))).length}`
