@@ -103,7 +103,11 @@ async function main() {
 
 	// Count of all nominators.
 	console.log(`staking_nominatorCount: ${await api.query.staking.counterForNominators()}`);
-	console.log(`staking_inactiveNominatorCount: ${(await api.query.staking.counterForNominators()).sub(api.consts.electionProviderMultiPhase.maxElectingVoters)}`);
+	console.log(
+		`staking_inactiveNominatorCount: ${(await api.query.staking.counterForNominators()).sub(
+			api.consts.electionProviderMultiPhase.maxElectingVoters
+		)}`
+	);
 	// Count of all validators
 	console.log(`staking_validatorCount: ${await api.query.staking.counterForValidators()}`);
 	// Number of DOTs staked in general.
