@@ -72,7 +72,7 @@ async function main() {
 			const ledger = (await api.query.staking.ledger(bondedAccount)).unwrap();
 			const poolActiveBalance = ledger.active.toBn();
 			const ratioPercent = poolPoints.mul(new BN(100)).div(poolActiveBalance);
-			const unbondingBalance = ledger.total.toBn().sub(ledger.total.toBn());
+			const unbondingBalance = ledger.total.toBn().sub(ledger.active.toBn());
 			const poolInfo = {
 				// id of the pool.
 				poolId,
