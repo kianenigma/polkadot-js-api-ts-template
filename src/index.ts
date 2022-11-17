@@ -98,16 +98,16 @@ async function main() {
 	// NOTE: each metric is prefix with the pallet from which it is coming from.
 
 	function sum(t: BN[]): BN {
+		if (t.length == 0) {
+			return new BN(0);
+		}
 		return t.reduce((p, c) => p.add(c));
 	}
 
+	// 1. General staking metrics
+
 	// Count of all nominators.
 	console.log(`staking_nominatorCount: ${await api.query.staking.counterForNominators()}`);
-	console.log(
-		`staking_inactiveNominatorCount: ${(await api.query.staking.counterForNominators()).sub(
-			api.consts.electionProviderMultiPhase.maxElectingVoters
-		)}`
-	);
 	// Count of all validators
 	console.log(`staking_validatorCount: ${await api.query.staking.counterForValidators()}`);
 	// Number of DOTs staked in general.
@@ -115,7 +115,11 @@ async function main() {
 	console.log(`staking_staked ${b(stakingStaked)}`);
 
 	// NOTE: next two metrics take a lot of time, if too slow, consider skipping, or scraping less frequent.
-	const ledgers = (await api.query.staking.ledger.entries()).map(([_, l]) => l.unwrap());
+	const ledgersEntries = await api.query.staking.ledger.entries();
+	const ledgers = ledgersEntries.map(([_, l]) => l.unwrap());
+	const ledgersMap = new Map(
+		ledgersEntries.map(([w, l]) => [l.unwrap().stash.toString(), l.unwrap()])
+	);
 
 	// Amount of dots being unstaked from staking. Will give un an indicate of how many people are unbonding.
 	console.log(
@@ -129,6 +133,8 @@ async function main() {
 			ledgers.filter((l) => l.active.toBn().isZero() && l.unlocking.length > 0).length
 		}`
 	);
+
+	// 2. Metrics related to pools:
 
 	// Count of all pools.
 	console.log(`pools_poolsCount: ${poolsCount}`);
@@ -176,6 +182,55 @@ async function main() {
 	console.log(
 		`pools_pendingRewards: ${b(
 			PoolsDetails.map((p) => p.pendingRewards).reduce((p, c) => p.add(c))
+		)}`
+	);
+
+	// 3. Metrics related to inactive nominators, one of the main goals:
+	const exposures = (await api.query.staking.erasStakers.entries(currentEra)).map(([_, e]) => e);
+	const allOthers = new Set(exposures.flatMap((e) => e.others.map((i) => i.who.toString())));
+	const nominators = (await api.query.staking.nominators.entries()).map(([n, _]) => n.args[0]);
+	const inactiveNominators = nominators.filter((n) => !allOthers.has(n.toString()));
+
+	// number of inactive nominators
+	console.log(`inactiveNominators_count: ${inactiveNominators.length}`);
+	// number of inactive nominators who are fully unstaking
+	console.log(
+		`inactiveNominators_fullyUnbondingCount: ${
+			inactiveNominators.filter((n) => {
+				const l = ledgersMap.get(n.toString());
+				return l?.active.toBn().isZero();
+			}).length
+		}`
+	);
+	// number of inactive nominators who are fully or partially unstaking
+	console.log(
+		`inactiveNominators_unbondingCount: ${
+			inactiveNominators.filter((n) => {
+				const l = ledgersMap.get(n.toString());
+				return l?.unlocking.length != 0;
+			}).length
+		}`
+	);
+	// total DOTs that are bonded by inactive nominators
+	console.log(
+		`inactiveNominators_bonded ${b(
+			sum(
+				inactiveNominators.map((n) => {
+					const l = ledgersMap.get(n.toString());
+					return l?.active.toBn() || new BN(0);
+				})
+			)
+		)}`
+	);
+	// total DOTs that are unbonding by inactive nominators.
+	console.log(
+		`inactiveNominators_unbonding ${b(
+			sum(
+				inactiveNominators.map((n) => {
+					const l = ledgersMap.get(n.toString());
+					return l?.total.toBn().sub(l.active.toBn()) || new BN(0);
+				})
+			)
 		)}`
 	);
 }
