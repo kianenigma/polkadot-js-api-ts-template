@@ -121,6 +121,29 @@ async function main() {
 		ledgersEntries.map(([w, l]) => [l.unwrap().stash.toString(), l.unwrap()])
 	);
 
+	console.log(`staking_currentEra ${currentEra.toNumber()}`);
+	const allUnlocking = ledgers.flatMap((l) => Array.from(l.unlocking));
+	// Amount of stake that is already unlocked.
+	let alreadyUnlocked = new BN(0);
+	// Amount of stake being free to unbond at any of the given eras. only contains future eras.
+	const unlockingAtEra: Map<number, BN> = new Map();
+	allUnlocking.forEach((u) => {
+		if (u.era.toNumber() <= currentEra.toNumber()) {
+			alreadyUnlocked = alreadyUnlocked.add(u.value.toBn());
+		} else if (unlockingAtEra.has(u.era.toNumber())) {
+			const current = unlockingAtEra.get(u.era.toNumber())!;
+			unlockingAtEra.set(u.era.toNumber(), current.add(u.value.toBn()));
+		} else {
+			unlockingAtEra.set(u.era.toNumber(), u.value.toBn());
+		}
+	});
+	console.log(`staking_alreadyUnlocked ${b(alreadyUnlocked)}`);
+	Array.from(unlockingAtEra)
+		.sort((x, y) => x[0] - y[0])
+		.forEach(([era, amount]) => {
+			console.log(`unlockingAtEra_${era}: ${b(amount)}`);
+		});
+
 	// Amount of dots being unstaked from staking. Will give un an indicate of how many people are unbonding.
 	console.log(
 		`staking_unbondingStake ${b(sum(ledgers.map((l) => l.total.toBn().sub(l.active.toBn()))))}`
