@@ -71,9 +71,11 @@ async function main() {
 			);
 			const ledger = (await api.query.staking.ledger(bondedAccount)).unwrap();
 			const poolActiveBalance = ledger.active.toBn();
-			const ratioPercent = poolPoints.mul(new BN(100)).div(poolActiveBalance);
+			const ratioPercent = poolPoints.mul(new BN(100)).div(BN.max(poolActiveBalance, new BN(1)));
 			const unbondingBalance = ledger.total.toBn().sub(ledger.active.toBn());
 			const poolInfo = {
+				// state of the pool: open, blocked.
+				state: bondedPool.unwrapOrDefault().state,
 				// id of the pool.
 				poolId,
 				// number of members
@@ -93,8 +95,6 @@ async function main() {
 		})
 	);
 
-	const currentEra = (await api.query.staking.currentEra()).unwrap();
-
 	// NOTE: each metric is prefix with the pallet from which it is coming from.
 
 	function sum(t: BN[]): BN {
@@ -105,44 +105,35 @@ async function main() {
 	}
 
 	// 1. General staking metrics
-
-	// Count of all nominators.
-	console.log(`staking_nominatorCount: ${await api.query.staking.counterForNominators()}`);
-	// Count of all validators
-	console.log(`staking_validatorCount: ${await api.query.staking.counterForValidators()}`);
-	// Number of DOTs staked in general.
-	const stakingStaked = await api.query.staking.erasTotalStake(currentEra);
-	console.log(`staking_staked ${b(stakingStaked)}`);
-
-	// NOTE: next two metrics take a lot of time, if too slow, consider skipping, or scraping less frequent.
-	const ledgersEntries = await api.query.staking.ledger.entries();
+	const currentEra = (await api.query.staking.currentEra()).unwrap();
+	const [ledgersEntries, exposures] = await Promise.all([
+		api.query.staking.ledger.entries(),
+		api.query.staking.erasStakers.entries(currentEra)
+	]);
 	const ledgers = ledgersEntries.map(([_, l]) => l.unwrap());
 	const ledgersMap = new Map(
 		ledgersEntries.map(([w, l]) => [l.unwrap().stash.toString(), l.unwrap()])
 	);
 
-	console.log(`staking_currentEra ${currentEra.toNumber()}`);
-	const allUnlocking = ledgers.flatMap((l) => Array.from(l.unlocking));
-	// Amount of stake that is already unlocked.
-	let alreadyUnlocked = new BN(0);
-	// Amount of stake being free to unbond at any of the given eras. only contains future eras.
-	const unlockingAtEra: Map<number, BN> = new Map();
-	allUnlocking.forEach((u) => {
-		if (u.era.toNumber() <= currentEra.toNumber()) {
-			alreadyUnlocked = alreadyUnlocked.add(u.value.toBn());
-		} else if (unlockingAtEra.has(u.era.toNumber())) {
-			const current = unlockingAtEra.get(u.era.toNumber())!;
-			unlockingAtEra.set(u.era.toNumber(), current.add(u.value.toBn()));
-		} else {
-			unlockingAtEra.set(u.era.toNumber(), u.value.toBn());
-		}
-	});
-	console.log(`staking_alreadyUnlocked ${b(alreadyUnlocked)}`);
-	Array.from(unlockingAtEra)
-		.sort((x, y) => x[0] - y[0])
-		.forEach(([era, amount]) => {
-			console.log(`unlockingAtEra_${era}: ${b(amount)}`);
-		});
+	// Count of all nominators.
+	console.log(`staking_nominatorCount: ${await api.query.staking.counterForNominators()}`);
+	// Count of all validators
+	console.log(`staking_validatorCount: ${await api.query.staking.counterForValidators()}`);
+	// Count of all accounts staked. These accounts have not declared intention to validate and/or nomiante.
+	console.log(`staking_stakedAccountCount: ${ledgers.length}`);
+
+	const stakingStaked = await api.query.staking.erasTotalStake(currentEra);
+	// Number of tokens staked.
+	console.log(`staking_staked ${b(stakingStaked)}`);
+
+	// TODO: will come into motion once goes into production: https://github.com/paritytech/substrate/pull/12889/files
+	// Minimum active/rewardable stake for nominators.
+	const minNominatorsActiveStake = api.query.staking.minimumActiveStake
+		? (await api.query.staking.minimumActiveStake()).toBn()
+		: new BN(0);
+	console.log(`staking_minNominatorsActiveStake: ${minNominatorsActiveStake}`);
+
+	// the following two indicates how much stake is being unbonded.
 
 	// Amount of dots being unstaked from staking. Will give un an indicate of how many people are unbonding.
 	console.log(
@@ -157,10 +148,94 @@ async function main() {
 		}`
 	);
 
-	// 2. Metrics related to pools:
+	// then, we look into the when they are free to be unbonded;
+
+	const allUnlocking = ledgers.flatMap((l) => Array.from(l.unlocking));
+	let alreadyUnlocked = new BN(0);
+	const unlockingAtEra: Map<number, BN> = new Map();
+	allUnlocking.forEach((u) => {
+		if (u.era.toNumber() <= currentEra.toNumber()) {
+			alreadyUnlocked = alreadyUnlocked.add(u.value.toBn());
+		} else if (unlockingAtEra.has(u.era.toNumber())) {
+			const current = unlockingAtEra.get(u.era.toNumber())!;
+			unlockingAtEra.set(u.era.toNumber(), current.add(u.value.toBn()));
+		} else {
+			unlockingAtEra.set(u.era.toNumber(), u.value.toBn());
+		}
+	});
+
+	// Amount of unbonding stake that is already unlocked.
+	console.log(`staking_unbondingAlreadyUnlocked ${b(alreadyUnlocked)}`);
+	Array.from(unlockingAtEra)
+		.sort((x, y) => x[0] - y[0])
+		.forEach(([era, amount]) => {
+			// Amount of unbonding stake being free to unbond at any of the given eras. only contains future eras.
+			console.log(`staking_unbondingUnlockingAtEra_${era}: ${b(amount)}`);
+		});
+
+	// -------------------------------------------------
+	// 2. Metrics related to inactive nominators, one of the main goals:
+
+	const allOthers = new Set(exposures.flatMap(([_, e]) => e.others.map((i) => i.who.toString())));
+	const nominators = (await api.query.staking.nominators.entries()).map(([n, _]) => n.args[0]);
+	const inactiveNominators = nominators.filter((n) => !allOthers.has(n.toString()));
+
+	// number of inactive nominators
+	console.log(`inactiveNominators_count: ${inactiveNominators.length}`);
+	// number of inactive nominators who are fully unbonding
+	console.log(
+		`inactiveNominators_fullyUnbondingCount: ${
+			inactiveNominators.filter((n) => {
+				const l = ledgersMap.get(n.toString());
+				return l?.active.toBn().isZero();
+			}).length
+		}`
+	);
+	// number of inactive nominators who are fully or partially unbonding.
+	console.log(
+		`inactiveNominators_unbondingCount: ${
+			inactiveNominators.filter((n) => {
+				const l = ledgersMap.get(n.toString());
+				return l?.unlocking.length != 0;
+			}).length
+		}`
+	);
+	// total tokens that are bonded by inactive nominators
+	console.log(
+		`inactiveNominators_bonded ${b(
+			sum(
+				inactiveNominators.map((n) => {
+					const l = ledgersMap.get(n.toString());
+					return l?.active.toBn() || new BN(0);
+				})
+			)
+		)}`
+	);
+	// total tokens that are unbonding by inactive nominators.
+	console.log(
+		`inactiveNominators_unbonding ${b(
+			sum(
+				inactiveNominators.map((n) => {
+					const l = ledgersMap.get(n.toString());
+					return l?.total.toBn().sub(l.active.toBn()) || new BN(0);
+				})
+			)
+		)}`
+	);
+
+	// -------------------------------------------------
+	// 3. Metrics related to pools:
 
 	// Count of all pools.
 	console.log(`pools_poolsCount: ${poolsCount}`);
+	// Count of open pools.
+	console.log(`pools_openPoolCount: ${PoolsDetails.filter((p) => p.state.isOpen).length}`);
+	// Count of blocked pools.
+	console.log(`pools_blockedPoolCount: ${PoolsDetails.filter((p) => p.state.isBlocked).length}`);
+	// Count of destroying pools.
+	console.log(
+		`pools_destroyingPoolCount: ${PoolsDetails.filter((p) => p.state.isDestroying).length}`
+	);
 	// Number of pools which are not slashed and have 1-1 point to balance ratio.
 	console.log(
 		`pools_unslashedPoolsCount ${PoolsDetails.filter((p) => p.ratioPercent.eq(new BN(100))).length}`
@@ -172,21 +247,28 @@ async function main() {
 	console.log(
 		`pools_avgMemberPerPool: ${(membersCount.toNumber() / poolsCount.toNumber()).toFixed(1)}`
 	);
-	// NOTE: the following is rather slow, remove if not needed.
-	// Number of members having less than 200 DOTs in the pool, per pool. Mapping from poolId to count.
-	const pointsLimit = new BN(10).pow(new BN(10)).mul(new BN(200));
-	const membersLessThanLimit = (await api.query.nominationPools.poolMembers.entries())
-		.map(([_, m]) => m.unwrap().points)
-		.filter((p) => p.lt(pointsLimit)).length;
-	console.log(`pools_membersLessThan${b(pointsLimit)}: ${membersLessThanLimit}`);
 
-	// The number of DOTs staked via pools.
+	const poolPointToBalance = (amount: BN, pool: { poolPoints: BN; poolActiveBalance: BN }) =>
+		amount.mul(pool.poolActiveBalance).div(BN.max(pool.poolPoints, new BN(1)));
+
+	// Number of members having less than 200 DOTs in the pool, per pool. Mapping from poolId to count.
+	const minimumActiveStake = minNominatorsActiveStake;
+	const membersLessThanLimit = (await api.query.nominationPools.poolMembers.entries())
+		.map(([_, m]) => {
+			const member = m.unwrap();
+			const pool = PoolsDetails.find((p) => p.poolId.eq(member.poolId));
+			return poolPointToBalance(member.points, pool!);
+		})
+		.filter((p) => p.lt(minimumActiveStake)).length;
+	console.log(`pools_membersLessThan${b(minimumActiveStake)}: ${membersLessThanLimit}`);
+
 	const poolsStake = sum(PoolsDetails.map((p) => p.poolActiveBalance));
+	// The number of tokens staked via pools.
 	console.log(`pools_staked: ${b(poolsStake)}`);
 	// Same as above, but in points.
 	console.log(`pools_points: ${b(sum(PoolsDetails.map((p) => p.poolPoints)))}`);
 
-	// Ratio of dots staked via pools. This is `pools_sum_staked / staking_sumStaked`.
+	// Ratio of dots staked via pools. This is `pools_sum_staked / staking_sumStaked`. Can be calculated in the frontend.
 	console.log(
 		// this will allow us to detect a ratio as small as one-millionth.
 		`pools_stakingRatio ${(
@@ -194,7 +276,7 @@ async function main() {
 		).toFixed(4)}`
 	);
 
-	// Total balance being unbonded from pools.
+	// Total balance being unbonded from all pools.
 	console.log(
 		`pools_unbondingBalance: ${b(
 			PoolsDetails.map((p) => p.unbondingBalance).reduce((p, c) => p.add(c))
@@ -205,55 +287,6 @@ async function main() {
 	console.log(
 		`pools_pendingRewards: ${b(
 			PoolsDetails.map((p) => p.pendingRewards).reduce((p, c) => p.add(c))
-		)}`
-	);
-
-	// 3. Metrics related to inactive nominators, one of the main goals:
-	const exposures = (await api.query.staking.erasStakers.entries(currentEra)).map(([_, e]) => e);
-	const allOthers = new Set(exposures.flatMap((e) => e.others.map((i) => i.who.toString())));
-	const nominators = (await api.query.staking.nominators.entries()).map(([n, _]) => n.args[0]);
-	const inactiveNominators = nominators.filter((n) => !allOthers.has(n.toString()));
-
-	// number of inactive nominators
-	console.log(`inactiveNominators_count: ${inactiveNominators.length}`);
-	// number of inactive nominators who are fully unstaking
-	console.log(
-		`inactiveNominators_fullyUnbondingCount: ${
-			inactiveNominators.filter((n) => {
-				const l = ledgersMap.get(n.toString());
-				return l?.active.toBn().isZero();
-			}).length
-		}`
-	);
-	// number of inactive nominators who are fully or partially unstaking
-	console.log(
-		`inactiveNominators_unbondingCount: ${
-			inactiveNominators.filter((n) => {
-				const l = ledgersMap.get(n.toString());
-				return l?.unlocking.length != 0;
-			}).length
-		}`
-	);
-	// total DOTs that are bonded by inactive nominators
-	console.log(
-		`inactiveNominators_bonded ${b(
-			sum(
-				inactiveNominators.map((n) => {
-					const l = ledgersMap.get(n.toString());
-					return l?.active.toBn() || new BN(0);
-				})
-			)
-		)}`
-	);
-	// total DOTs that are unbonding by inactive nominators.
-	console.log(
-		`inactiveNominators_unbonding ${b(
-			sum(
-				inactiveNominators.map((n) => {
-					const l = ledgersMap.get(n.toString());
-					return l?.total.toBn().sub(l.active.toBn()) || new BN(0);
-				})
-			)
 		)}`
 	);
 }
