@@ -123,7 +123,7 @@ async function main() {
 	console.log(`staking_stakedAccountCount: ${ledgers.length}`);
 
 	const stakingStaked = await api.query.staking.erasTotalStake(currentEra);
-	// Number of tokens staked.
+	// Total number of tokens staked.
 	console.log(`staking_staked ${b(stakingStaked)}`);
 
 	// TODO: will come into motion once goes into production: https://github.com/paritytech/substrate/pull/12889/files
@@ -276,11 +276,9 @@ async function main() {
 		).toFixed(4)}`
 	);
 
-	// Total balance being unbonded from all pools.
+	// Total tokens being unbonded from all pools.
 	console.log(
-		`pools_unbondingBalance: ${b(
-			PoolsDetails.map((p) => p.unbondingBalance).reduce((p, c) => p.add(c))
-		)}`
+		`pools_unbonding: ${b(PoolsDetails.map((p) => p.unbondingBalance).reduce((p, c) => p.add(c)))}`
 	);
 	// the amount of pending rewards in all pools over time. We want the integral of this, and we
 	// interpret it as: Total DOTs rewarded via poos in a period of time.
