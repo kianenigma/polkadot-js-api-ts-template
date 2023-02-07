@@ -271,7 +271,7 @@ async function main() {
 	// Ratio of dots staked via pools. This is `pools_sum_staked / staking_sumStaked`. Can be calculated in the frontend.
 	console.log(
 		// this will allow us to detect a ratio as small as one-millionth.
-		`pools_stakingRatio ${(
+		`pools_stakingShare ${(
 			poolsStake.mul(new BN(1000000)).div(stakingStaked).toNumber() / 1000000
 		).toFixed(4)}`
 	);
