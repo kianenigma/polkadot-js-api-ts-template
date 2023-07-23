@@ -32,7 +32,7 @@ async function main() {
 
 	const lightProvider = new ScProvider(Sc, Sc.WellKnownChain.polkadot);
 	await lightProvider.connect();
-	const hash = await provider.send('chain_getBlockHash', []);
+	const hash = await lightProvider.send('chain_getBlockHash', []);
 	console.log('version from light client:', hash);
 
 	// reading the list of pallets and their version.
