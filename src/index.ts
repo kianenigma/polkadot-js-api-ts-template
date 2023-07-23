@@ -8,6 +8,9 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { BN } from '@polkadot/util';
 
+import { ScProvider } from '@polkadot/rpc-provider/substrate-connect';
+import * as Sc from '@substrate/connect';
+
 const optionsPromise = yargs(hideBin(process.argv)).option('endpoint', {
 	alias: 'e',
 	type: 'string',
@@ -26,6 +29,10 @@ async function main() {
 			api.registry.chainSS58
 		}]`
 	);
+
+	const lightProvider = new ScProvider(Sc, Sc.WellKnownChain.polkadot);
+	await lightProvider.connect();
+	const lightApi = await ApiPromise.create({ provider });
 
 	for (const key in api.query) {
 		if (api.query[key] && api.query[key].palletVersion) {
